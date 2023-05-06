@@ -1,13 +1,13 @@
 import base64
 import io
 import os
-from matplotlib import pyplot as plt
 
 import numpy as np
 import timm
+from matplotlib import pyplot as plt
+from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from PIL import Image
 from sklearn.manifold import TSNE
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
 
 # Load images from a folder
@@ -47,7 +47,7 @@ data_cfg = timm.data.resolve_data_config(model.pretrained_cfg)
 transform = timm.data.create_transform(**data_cfg)
 
 # Load images
-folder = "imgs"
+folder = "imgs/time_of_day"
 images = load_images(folder, 1000)
 
 # Embed features in 2D
@@ -63,7 +63,7 @@ def plot_images_on_scatter(x, y, images):
         if event.inaxes is ax:
             for im in images:
                 current_zoom = im.get_zoom()
-                zoom_factor = 1.2 if event.button == 'up' else 0.8
+                zoom_factor = 1.2 if event.button == "up" else 0.8
                 im.set_zoom(current_zoom * zoom_factor)
                 plt.draw()
 
@@ -79,7 +79,7 @@ def plot_images_on_scatter(x, y, images):
         ax.add_artist(ab)
 
     # Register the update_zoom function with the on_scroll event
-    fig.canvas.mpl_connect('scroll_event', update_zoom)
+    fig.canvas.mpl_connect("scroll_event", update_zoom)
     ax.scatter(x, y, s=1, alpha=0)
     plt.show()
 
