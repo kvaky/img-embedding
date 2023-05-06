@@ -47,7 +47,7 @@ data_cfg = timm.data.resolve_data_config(model.pretrained_cfg)
 transform = timm.data.create_transform(**data_cfg)
 
 # Load images
-folder = "imgs/time_of_day"
+folder = "imgs"
 images = load_images(folder, 1000)
 
 # Embed features in 2D
