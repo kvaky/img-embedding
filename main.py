@@ -45,6 +45,16 @@ def tsne_embedding(features, dimensions):
     return embedded_features
 
 
+# Define a function to update the zoom level on scroll
+def update_zoom(event):
+    if event.inaxes is ax:
+        for im in images:
+            current_zoom = im.get_zoom()
+            zoom_factor = 1.2 if event.button == "up" else 0.8
+            im.set_zoom(current_zoom * zoom_factor)
+            plt.draw()
+
+
 # Create model
 model = timm.create_model("vgg11_bn", pretrained=True, num_classes=0)
 data_cfg = timm.data.resolve_data_config(model.pretrained_cfg)
@@ -59,37 +69,24 @@ features = extract_features(images, model, transform)
 embedded_features = tsne_embedding(features, 2)
 
 
-def plot_images_on_scatter(x, y, images):
-    fig, ax = plt.subplots()
-
-    # Define a function to update the zoom level on scroll
-    def update_zoom(event):
-        if event.inaxes is ax:
-            for im in images:
-                current_zoom = im.get_zoom()
-                zoom_factor = 1.2 if event.button == "up" else 0.8
-                im.set_zoom(current_zoom * zoom_factor)
-                plt.draw()
-
-    for i, image in enumerate(images):
-        img_buffer = io.BytesIO()
-        image.save(img_buffer, format="png")
-        img_base64 = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
-        img = Image.open(io.BytesIO(base64.b64decode(img_base64)))
-
-        im = OffsetImage(img, zoom=0.18)
-        ab = AnnotationBbox(im, (x[i], y[i]), frameon=False)
-        images[i] = im
-        ax.add_artist(ab)
-
-    # Register the update_zoom function with the on_scroll event
-    fig.canvas.mpl_connect("scroll_event", update_zoom)
-    ax.scatter(x, y, s=1, alpha=0)
-    plt.show()
-
-
 # Plot the embedded images
 x = embedded_features[:, 0]
 y = embedded_features[:, 1]
 
-plot_images_on_scatter(x, y, images)
+fig, ax = plt.subplots()
+
+for i, image in enumerate(images):
+    img_buffer = io.BytesIO()
+    image.save(img_buffer, format="png")
+    img_base64 = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
+    img = Image.open(io.BytesIO(base64.b64decode(img_base64)))
+
+    im = OffsetImage(img, zoom=0.18)
+    ab = AnnotationBbox(im, (x[i], y[i]), frameon=False)
+    images[i] = im
+    ax.add_artist(ab)
+
+# Register the update_zoom function with the on_scroll event
+fig.canvas.mpl_connect("scroll_event", update_zoom)
+ax.scatter(x, y, s=1, alpha=0)
+plt.show()
