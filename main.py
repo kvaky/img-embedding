@@ -68,7 +68,6 @@ images = load_images(folder, 1000)
 features = extract_features(images, model, transform)
 embedded_features = tsne_embedding(features, 2)
 
-
 # Plot the embedded images
 x = embedded_features[:, 0]
 y = embedded_features[:, 1]
