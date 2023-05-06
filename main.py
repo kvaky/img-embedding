@@ -54,7 +54,7 @@ transform = timm.data.create_transform(**data_cfg)
 folder = "imgs"
 images = load_images(folder, 1000)
 
-# Embed features in 2D
+# Get features and embed them in 2D
 features = extract_features(images, model, transform)
 embedded_features = tsne_embedding(features, 2)
 
