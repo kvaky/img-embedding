@@ -15,7 +15,11 @@ def load_images(folder, n=-1):
     images = []
     for root, dirs, files in os.walk(folder):
         for file in files:
-            if not file.endswith(".jpeg"):
+            if (
+                not file.endswith(".jpg")
+                and not file.endswith(".png")
+                and not file.endswith(".jpeg")
+            ):
                 continue
             with Image.open(os.path.join(root, file)) as img:
                 images.append(img.copy())
