@@ -45,7 +45,7 @@ def tsne_embedding(features, dimensions):
     return embedded_features
 
 
-# Define a function to update the zoom level on scroll
+# Update the zoom level on scroll
 def update_zoom(event):
     if event.inaxes is ax:
         for im in images:
