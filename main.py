@@ -1,8 +1,11 @@
-from pathlib import Path
 import random
+from functools import partial
+from pathlib import Path
 
-import numpy as np
+import PIL
 import timm
+import timm.data
+import torch
 from matplotlib import pyplot as plt
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from PIL import Image
@@ -10,11 +13,23 @@ from sklearn.manifold import TSNE
 
 N_IMAGES = 1000
 FOLDER_NAME = "imgs"
+BATCH_SIZE = 32
+
+
+# Determine the device to use
+device = torch.device(
+    "cuda"
+    if torch.cuda.is_available()
+    else "mps"
+    if torch.backends.mps.is_available()
+    else "cpu"
+)
+
+print(f"Using device: {device}")
 
 
 # Load random images from a folder
 def load_images(folder, n) -> list[Image.Image]:
-    
     images = []
     file_paths = []
     accepted_extensions = [".jpg", ".jpeg", ".png"]
@@ -22,27 +37,38 @@ def load_images(folder, n) -> list[Image.Image]:
     for path in Path(folder).rglob("*"):
         if path.suffix.lower() in accepted_extensions:
             file_paths.append(path)
-    
-    if n > 0:
-        selected_paths = random.sample(file_paths, min(n, len(file_paths)))
-    else:
-        selected_paths = file_paths
-    
+
+    selected_paths = random.sample(file_paths, min(n, len(file_paths)))
+
     for path in selected_paths:
-        with Image.open(path) as img:
-            images.append(img.copy())
-    
+        try:
+            with Image.open(path) as img:
+                images.append(img.copy())
+        except PIL.UnidentifiedImageError:
+            print(f"Could not load image {path}")
+
     return images
 
 
 # Extract features from images
-def extract_features(images, model, transform):
-    features = []
-    for image in images:
-        img_tensor = transform(image).unsqueeze(0)
-        feature = model(img_tensor).squeeze().detach().numpy()
-        features.append(feature)
-    return np.array(features)
+def extract_features(images, model, transform, batch_size):
+    n_images = len(images)
+    n_features = model.num_features
+    features = torch.zeros((n_images, n_features))
+
+    # Process images in batches
+    for i in range(0, n_images, batch_size):
+        batch_images = images[i : i + batch_size]
+        batch_tensors = torch.stack([transform(image) for image in batch_images]).to(
+            device
+        )
+
+        with torch.no_grad():
+            batch_features = model(batch_tensors).cpu()
+
+        features[i : i + batch_size] = batch_features
+
+    return features
 
 
 # TSNE for feature embedding
@@ -53,41 +79,45 @@ def tsne_embedding(features, dimensions):
 
 
 # Update the zoom level on scroll
-def update_zoom(event):
+def update_zoom(images, ax, event):
+    zoom_factor = 1.2 if event.button == "up" else 0.8
     if event.inaxes is ax:
         for im in images:
             current_zoom = im.get_zoom()
-            zoom_factor = 1.2 if event.button == "up" else 0.8
             im.set_zoom(current_zoom * zoom_factor)
-            plt.draw()
+    plt.draw()
 
 
-# Create model
-model = timm.create_model("vgg11_bn", pretrained=True, num_classes=0)
+print("Loading model...")
+model = timm.create_model("vgg11_bn", pretrained=True, num_classes=0).to(device)
+model.eval()
+
+# Get model transform
 data_cfg = timm.data.resolve_data_config(model.pretrained_cfg)
 transform = timm.data.create_transform(**data_cfg)
 
-# Load images
+print("Loading images...")
 images = load_images(FOLDER_NAME, N_IMAGES)
 
-# Get features and embed them in 2D
-features = extract_features(images, model, transform)
+print(f"Extracting features...")
+features = extract_features(images, model, transform, BATCH_SIZE)
 embedded_features = tsne_embedding(features, 2)
 
-# Plot the embedded images
+print("Plotting...")
 x = embedded_features[:, 0]
 y = embedded_features[:, 1]
 
 fig, ax = plt.subplots()
 
 for i, image in enumerate(images):
-    image.thumbnail((300, 300))
+    image.thumbnail((200, 200))
     im = OffsetImage(image, zoom=0.18)
     ab = AnnotationBbox(im, (x[i], y[i]), frameon=False)
     images[i] = im
     ax.add_artist(ab)
 
-# Register the update_zoom function with the on_scroll event
-fig.canvas.mpl_connect("scroll_event", update_zoom)
+# Connect the scroll event to the zoom function
+update_zoom_partial = partial(update_zoom, images, ax)
+fig.canvas.mpl_connect("scroll_event", update_zoom_partial)
 ax.scatter(x, y, s=1, alpha=0)
 plt.show()
