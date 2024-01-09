@@ -2,13 +2,12 @@ import random
 from functools import partial
 from pathlib import Path
 
-import PIL
 import timm
 import timm.data
 import torch
 from matplotlib import pyplot as plt
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from sklearn.manifold import TSNE
 
 N_IMAGES = 1000
@@ -18,11 +17,7 @@ BATCH_SIZE = 32
 
 # Determine the device to use
 device = torch.device(
-    "cuda"
-    if torch.cuda.is_available()
-    else "mps"
-    if torch.backends.mps.is_available()
-    else "cpu"
+    "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 )
 
 print(f"Using device: {device}")
@@ -30,21 +25,20 @@ print(f"Using device: {device}")
 
 # Load random images from a folder
 def load_images(folder, n) -> list[Image.Image]:
-    images = []
-    file_paths = []
-    accepted_extensions = [".jpg", ".jpeg", ".png"]
-
-    for path in Path(folder).rglob("*"):
-        if path.suffix.lower() in accepted_extensions:
-            file_paths.append(path)
+    file_paths = [
+        path
+        for path in Path(folder).rglob("*")
+        if path.suffix.lower() in Image.registered_extensions()
+    ]
 
     selected_paths = random.sample(file_paths, min(n, len(file_paths)))
 
+    images = []
     for path in selected_paths:
         try:
             with Image.open(path) as img:
                 images.append(img.copy())
-        except PIL.UnidentifiedImageError:
+        except UnidentifiedImageError:
             print(f"Could not load image {path}")
 
     return images
@@ -59,9 +53,7 @@ def extract_features(images, model, transform, batch_size):
     # Process images in batches
     for i in range(0, n_images, batch_size):
         batch_images = images[i : i + batch_size]
-        batch_tensors = torch.stack([transform(image) for image in batch_images]).to(
-            device
-        )
+        batch_tensors = torch.stack([transform(image) for image in batch_images]).to(device)
 
         with torch.no_grad():
             batch_features = model(batch_tensors).cpu()
@@ -73,7 +65,7 @@ def extract_features(images, model, transform, batch_size):
 
 # TSNE for feature embedding
 def tsne_embedding(features, dimensions):
-    tsne = TSNE(n_components=dimensions)
+    tsne = TSNE(n_components=dimensions, perplexity=min(30, len(features) - 1))
     embedded_features = tsne.fit_transform(features)
     return embedded_features
 
@@ -98,6 +90,9 @@ transform = timm.data.create_transform(**data_cfg)
 
 print("Loading images...")
 images = load_images(FOLDER_NAME, N_IMAGES)
+if not images:
+    print("No images found")
+    exit()
 
 print(f"Extracting features...")
 features = extract_features(images, model, transform, BATCH_SIZE)
