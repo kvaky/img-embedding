@@ -1,6 +1,5 @@
-import base64
-import io
-import os
+from pathlib import Path
+import random
 
 import numpy as np
 import timm
@@ -9,22 +8,30 @@ from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from PIL import Image
 from sklearn.manifold import TSNE
 
+N_IMAGES = 1000
+FOLDER_NAME = "imgs"
 
-# Load images from a folder
-def load_images(folder, n=-1):
+
+# Load random images from a folder
+def load_images(folder, n) -> list[Image.Image]:
+    
     images = []
-    for root, dirs, files in os.walk(folder):
-        for file in files:
-            if (
-                not file.endswith(".jpg")
-                and not file.endswith(".png")
-                and not file.endswith(".jpeg")
-            ):
-                continue
-            with Image.open(os.path.join(root, file)) as img:
-                images.append(img.copy())
+    file_paths = []
+    accepted_extensions = [".jpg", ".jpeg", ".png"]
+
+    for path in Path(folder).rglob("*"):
+        if path.suffix.lower() in accepted_extensions:
+            file_paths.append(path)
+    
     if n > 0:
-        images = np.random.choice(images, n, replace=False)
+        selected_paths = random.sample(file_paths, min(n, len(file_paths)))
+    else:
+        selected_paths = file_paths
+    
+    for path in selected_paths:
+        with Image.open(path) as img:
+            images.append(img.copy())
+    
     return images
 
 
@@ -61,8 +68,7 @@ data_cfg = timm.data.resolve_data_config(model.pretrained_cfg)
 transform = timm.data.create_transform(**data_cfg)
 
 # Load images
-folder = "imgs"
-images = load_images(folder, 1000)
+images = load_images(FOLDER_NAME, N_IMAGES)
 
 # Get features and embed them in 2D
 features = extract_features(images, model, transform)
@@ -75,12 +81,8 @@ y = embedded_features[:, 1]
 fig, ax = plt.subplots()
 
 for i, image in enumerate(images):
-    img_buffer = io.BytesIO()
-    image.save(img_buffer, format="png")
-    img_base64 = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
-    img = Image.open(io.BytesIO(base64.b64decode(img_base64)))
-
-    im = OffsetImage(img, zoom=0.18)
+    image.thumbnail((300, 300))
+    im = OffsetImage(image, zoom=0.18)
     ab = AnnotationBbox(im, (x[i], y[i]), frameon=False)
     images[i] = im
     ax.add_artist(ab)
